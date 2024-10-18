@@ -1,87 +1,145 @@
 `timescale 1ns / 1ps
 
+//----------------------Эта часть юнит теста - это передача команды на флешку---
+//----------------------раскомментировать чтобы запустить в симуляторе----------------------
+
+//module read_status_register;
+//    reg clk = 1'b0;
+//    reg rst = 1'b1;
+//    reg start = 1'b0;
+//    wire [7:0] status_register;
+//    wire done;
+
+//    wire miso, mosi, sclk, cs;
+//    reg [7:0] cmd = 8'h05;  // Команда для чтения статусного регистра
+//    wire [7:0] data_out;
+//    wire spi_done;
+//    wire [7:0] test_shift_reg;
+
+//    // Инстанцируем SPI-мастер
+//    spi_master spi_inst (
+//        .clk(clk),
+//        .rst(rst),
+//        .start(start),
+//        .cmd(cmd),
+//        .miso(miso),
+//        .mosi(mosi),
+//        .sclk(sclk),
+//        .cs(cs),
+//        .data_out(data_out),
+//       .done(spi_done),
+//        .test_shift_reg(test_shift_reg)
+//    );
+
+//    initial begin
+//        clk = 0;
+//        forever #5 clk = ~clk; // Тактирование каждые 5 нс
+//    end
+    
+//    initial begin
+//        rst = 1'b1;
+//        start = 1'b0;
+        
+//        #10 rst = 1'b0;
+        
+//        #10 start = 1'b1;
+        
+//        #10 start = 1'b0;
+//    end
+
+//    assign status_register = data_out;  // Чтение регистра
+//    assign done = spi_done;  // Флаг завершения
+//endmodule
+//---------------------------------------------------------------------
+
+//----------------------Эта часть юнит теста - это передача данных, вычитанных из флешки---
+//----------------------раскомментировать чтобы запустить в симуляторе----------------------
+
+//
+
 module tb_read_status_register;
-reg clk;
-reg rst;
-reg start;
-wire [7:0] status_register;
-wire done;
-wire [3:0] test_bit_cnt;
-wire [7:0] test_shift_reg;
-wire [1:0] test_state;
-wire [7:0] data_out;
 
-// Сигналы для имитации флешки
-reg miso_flash;  // Входной сигнал от флешки
+    reg clk;
+    reg rst;
+    reg start;
+    wire [7:0] status_register;
+    wire done;
+    wire [3:0] test_bit_cnt;
+    wire [7:0] test_shift_reg;
+    wire [1:0] test_state;
+    wire [7:0] data_out;
+    
+    // Сигналы для имитации флешки
+    reg miso_flash;  // Входной сигнал от флешки
+    
+    // Инстанцируем тестируемый модуль
+    spi_master read_status_register_inst (
+        .clk(clk),
+        .rst(rst),
+        .start(start),
+        //.status_register(status_register),
+        .done(done),
+        .test_bit_cnt(test_bit_cnt),
+        .data_out(data_out),
+        .test_shift_reg(test_shift_reg),
+        .test_state(test_state)
+    );
 
-// Инстанцируем тестируемый модуль
-spi_master read_status_register_inst (
-    .clk(clk),
-    .rst(rst),
-    .start(start),
-    //.status_register(status_register),
-    .done(done),
-    .test_bit_cnt(test_bit_cnt),
-    .data_out(data_out),
-    .test_shift_reg(test_shift_reg),
-    .test_state(test_state)
-);
-
-// Имитация флешки (моделирование ответа от флеш-памяти)
-always @(posedge spi_master.sclk) begin
-    if (!spi_master.cs) begin  // Только когда CS активен
-        case (spi_master.bit_cnt)
-            7: miso_flash <= 1'b1;  // Старший бит ответного байта (пример)
-            6: miso_flash <= 1'b0;  // Следующий бит
-            5: miso_flash <= 1'b1;  // И так далее
-            4: miso_flash <= 1'b0;
-            3: miso_flash <= 1'b1;
-            2: miso_flash <= 1'b0;
-            1: miso_flash <= 1'b1;
-            0: miso_flash <= 1'b0;  // Младший бит ответного байта
-        endcase
-    end else begin
-        miso_flash <= 1'bz;  // Трёхсостояние, если CS неактивен
+    // Имитация флешки (моделирование ответа от флеш-памяти)
+    always @(posedge spi_master.sclk) begin
+        if (!spi_master.cs) begin  // Только когда CS активен
+            case (spi_master.bit_cnt)
+                7: miso_flash <= 1'b1;  // Старший бит ответного байта (пример)
+                6: miso_flash <= 1'b0;  // Следующий бит
+                5: miso_flash <= 1'b1;  // И так далее
+                4: miso_flash <= 1'b0;
+                3: miso_flash <= 1'b1;
+                2: miso_flash <= 1'b0;
+                1: miso_flash <= 1'b1;
+                0: miso_flash <= 1'b0;  // Младший бит ответного байта
+            endcase
+        end else begin
+            miso_flash <= 1'bz;  // Трёхсостояние, если CS неактивен
+        end
     end
-end
 
-// Назначаем симуляцию вывода miso от флешки в тестируемый модуль
-assign spi_master.miso = miso_flash;
+    // Назначаем симуляцию вывода miso от флешки в тестируемый модуль
+    assign spi_master.miso = miso_flash;
 
-// Генерация тактового сигнала (50 MHz)
-always begin
-    #10 clk = ~clk;  // Период 20 нс
-end
-
-initial begin
-    // Инициализация сигналов
-    clk = 0;
-    rst = 1;
-    start = 0;
-    
-    // Сброс системы
-    #100;
-    rst = 0;
-    
-    // Запускаем процесс чтения статусного регистра
-    #50;
-    start = 1;
-    #20;
-    start = 0;  // Отключаем старт
-    
-    // Ждем завершения
-    wait(done);
-    
-    // Проверяем, что данные прочитаны корректно
-    if (status_register == 8'b10101010) begin
-        $display("Тест пройден! Прочитан статусный регистр: %b", status_register);
-    end else begin
-        $display("Тест провален. Прочитан неверный регистр: %b", status_register);
+    // Генерация тактового сигнала (50 MHz)
+    always begin
+        #10 clk = ~clk;  // Период 20 нс
     end
-    
-    // Завершение симуляции
-    #100;
-    $finish;
-end
+
+    initial begin
+        // Инициализация сигналов
+        clk = 0;
+        rst = 1;
+        start = 0;
+        
+        // Сброс системы
+        #100;
+        rst = 0;
+        
+        // Запускаем процесс чтения статусного регистра
+        #50;
+        start = 1;
+        #20;
+        start = 0;  // Отключаем старт
+        
+        // Ждем завершения
+        wait(done);
+        
+        // Проверяем, что данные прочитаны корректно
+        if (status_register == 8'b10101010) begin
+            $display("Тест пройден! Прочитан статусный регистр: %b", status_register);
+        end else begin
+            $display("Тест провален. Прочитан неверный регистр: %b", status_register);
+        end
+        
+        // Завершение симуляции
+        #100;
+        $finish;
+    end
 
 endmodule
