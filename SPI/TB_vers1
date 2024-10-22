@@ -1,0 +1,52 @@
+`timescale 1ns / 1ps
+
+module TB_SPI_vers1;                            // Проверка для записи miso
+reg CLK;
+reg startRD;
+reg startWR;
+reg [7:0] miso;                                      // входные данные от флеш
+reg nRST;
+wire [7:0]test_shift_reg; 
+wire [1:0] test_state;                         
+wire [3:0] test_i;
+wire cs;   
+wire  [7:0] data_out_test;
+    
+SPI_vers1 c1(
+.CLK(CLK),
+.startRD (startRD),
+.startWR (startWR),
+.miso (miso),
+.nRST (nRST), 
+.test_i (test_i),
+.cs (cs),
+.data_out_test (data_out_test)
+);
+    
+        
+    always begin
+    #10 CLK = ~CLK;  // Период 20 нс
+end
+
+initial begin                                               // задаём данные на флеш
+    miso = 8'b01101101;
+    CLK = 0;
+    nRST = 1;
+    startRD = 0;
+    startWR = 0;
+    
+    #50;
+    nRST = 0;        //сброс системы;
+    #50; nRST =1;
+    // Запускаем процесс чтения статусного регистра
+    #100;
+    startWR = 1;
+    #20;
+    startWR = 0;  // Отключаем старт
+    
+    #200;
+end
+
+       
+    
+endmodule
