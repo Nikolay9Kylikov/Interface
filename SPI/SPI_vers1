@@ -1,0 +1,98 @@
+module SPI_vers1(
+    input CLK,
+    input startRD,
+    input startWR,
+    output reg cs,                        // cs=1 нету обмены инфой, cs=0 - есть
+    input nRST,
+    input wire [7:0] miso,                          // для приёма данных
+    output reg sclk,
+    output reg [7:0] mosidata,                         // регистр для отправки даннх 
+    output test_i,
+    output [7:0] test_shift_reg,
+    output reg [7:0] data_out,
+    output [1:0] test_state
+);
+reg [7:0] shiftreg = 0;
+reg [7:0] data;                               // регистр, где хранятся данные
+reg [1:0] state;
+reg  [3:0] i = 0;                                    // для подсчёта сдвигов в shiftreg и перевода автомата в другое состояние
+    assign test_i = i;
+    assign test_shift_reg = shiftreg;
+    assign test_state = state;
+
+                                   
+
+localparam IDLE = 2'b00,                     // определение конечного автомата, простой - чтение
+           READ = 2'b01,                     // чтение - запись
+           WRITE = 2'b10,                    // запись - конец
+           END = 2'b11;                      // конец - простой
+
+
+always @(posedge CLK)                     // т.к. синхронный - <=
+    if (nRST==0) begin
+    cs <= 1;                               // нет обмена
+    sclk <=0;
+    state <= IDLE;                         //переход на простой   
+    i <= 0;                                                                             
+    end
+    else begin
+         case (state)
+         IDLE: begin 
+               cs <= 1;                   // cs=1 нету обмены инфой
+               if (startRD==1) begin   
+               cs <= 0;                              
+               state <= READ;
+               end
+               
+               else if (startWR==1) begin            // нужно через 2 старта реализовать параллельную работу 
+               cs <= 0;
+               state <= WRITE;
+               end
+               
+               else if ((startRD==0) & (startWR==0))begin          // если старты = 0, то остаёмся в простое, здесь видно, что должно быть состояние, когда одновременно чтение и запись!
+               cs <= 1;
+               state <= IDLE;
+               end
+               end
+                        
+         READ: begin
+               sclk <= ~sclk;                           // задаём внутренний генератор
+               if (sclk) begin                          // работаем по 1
+               shiftreg <= data;               
+               mosidata <= shiftreg [7] ;               // отправка старшего бита
+               shiftreg <= {shiftreg[6:0], 1'b0};       // сдвиг данных
+               i <= i+1;                                //
+               if ((i==8) & (shiftreg == 0))begin      // если i=8 и одновременно shiftreg=0(на всякий) 
+               state <= WRITE;                          // переходим в след состояние
+               i <= 0;                                  // обнуляем счётчик
+               shiftreg <= 0;                           // обнуляем сдвиговый рег для записи
+               end
+               end
+               end
+                
+         WRITE: begin 
+                #10 sclk <= ~sclk;
+                if (!sclk) begin                       // работаем по 0
+                
+                shiftreg <= {shiftreg[6:0], miso};  // сдвиг данных на поступающий бит   shiftreg >>miso
+                data <= shiftreg [7];                   // поступление данных
+                
+                if ((i == 8) & (shiftreg == miso)) begin
+                data_out <= shiftreg;
+                state <= END;                                    
+                i <= 4'd0;
+                end
+                else begin
+                i <= i+4'd1;
+                end
+                end
+                end
+         
+         END: begin
+              cs <= 1;        // нет обмену
+              state <= IDLE;
+              end  
+
+         endcase     
+    end            
+endmodule
